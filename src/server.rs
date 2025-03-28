@@ -6,8 +6,9 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tower_lsp::{Client, LanguageServer};
 
-use crate::handlers::completion;
-use crate::handlers::document_symbols::document_symbols; // Import our completion handler
+use crate::handlers::completion; // our completion module
+use crate::handlers::document_symbols::document_symbols;
+use crate::handlers::workspace_symbols; // new workspace symbols handler
 
 pub struct NotemancyServer {
     client: Client,
@@ -39,6 +40,8 @@ impl LanguageServer for NotemancyServer {
             capabilities: ServerCapabilities {
                 // Register document symbol support.
                 document_symbol_provider: Some(OneOf::Left(true)),
+                // Register workspace symbol support.
+                workspace_symbol_provider: Some(OneOf::Left(true)),
                 // Register our completion support.
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
@@ -99,6 +102,21 @@ impl LanguageServer for NotemancyServer {
 
         // Return a nested response as we have a Vec<DocumentSymbol>
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+    }
+
+    async fn symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> Result<Option<Vec<SymbolInformation>>, tower_lsp::jsonrpc::Error> {
+        let query = params.query;
+        let symbols = workspace_symbols::get_workspace_symbols(&query).map_err(|e| {
+            tower_lsp::jsonrpc::Error {
+                code: tower_lsp::jsonrpc::ErrorCode::InternalError,
+                message: e,
+                data: None,
+            }
+        })?;
+        Ok(Some(symbols))
     }
 
     async fn completion(

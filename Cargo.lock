@@ -546,6 +546,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuse-rust"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf29d70efdbafa7d2dc40083514b205c8d8885fba815778acc57100a9029200c"
+dependencies = [
+ "rayon",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1167,9 +1176,11 @@ name = "ncylsp"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "fuse-rust",
  "indicatif 0.17.11",
  "lsp-types",
  "notemancy-core",
+ "regex",
  "serde",
  "serde_yaml",
  "tokio",

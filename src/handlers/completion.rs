@@ -23,7 +23,7 @@ struct ConfigFile {
 
 /// Reads the NOTEMANCY_CONF_DIR environment variable, loads config.yaml from that directory,
 /// and returns the vault_directory for the default vault.
-fn get_vault_directory() -> Result<PathBuf, String> {
+pub fn get_vault_directory() -> Result<PathBuf, String> {
     let conf_dir = env::var("NOTEMANCY_CONF_DIR")
         .map_err(|_| "Environment variable NOTEMANCY_CONF_DIR is not set".to_string())?;
     let config_path = Path::new(&conf_dir).join("config.yaml");
