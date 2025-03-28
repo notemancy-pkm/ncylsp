@@ -76,11 +76,12 @@ pub fn provide_wiki_link_completions(
             Ok(t) => t,
             Err(_) => continue, // Skip note if its title cannot be determined.
         };
+        let insert_text = format!("{} | {}", note, title);
         let item = CompletionItem {
             label: title.clone(),
             kind: Some(CompletionItemKind::FILE),
-            // Insert the title wrapped with wiki-link delimiters.
-            insert_text: Some(format!("[[{}]]", title)),
+            // Insert both the relative path and the title.
+            insert_text: Some(insert_text),
             detail: Some(note),
             ..Default::default()
         };
