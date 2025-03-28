@@ -10,3 +10,5 @@ async-trait = "0.1"
 lsp-types = "0.93"
 indicatif = "0.17"
 notemancy-core = { path = "../notemancy-core" }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_yaml = "0.9.34"

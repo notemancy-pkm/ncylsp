@@ -1170,6 +1170,8 @@ dependencies = [
  "indicatif 0.17.11",
  "lsp-types",
  "notemancy-core",
+ "serde",
+ "serde_yaml",
  "tokio",
  "tower-lsp",
 ]

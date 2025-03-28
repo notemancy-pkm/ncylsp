@@ -6,7 +6,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tower_lsp::{Client, LanguageServer};
 
-use crate::handlers::document_symbols::document_symbols;
+use crate::handlers::completion;
+use crate::handlers::document_symbols::document_symbols; // Import our completion handler
 
 pub struct NotemancyServer {
     client: Client,
@@ -38,6 +39,13 @@ impl LanguageServer for NotemancyServer {
             capabilities: ServerCapabilities {
                 // Register document symbol support.
                 document_symbol_provider: Some(OneOf::Left(true)),
+                // Register our completion support.
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(false),
+                    // We trigger completions on "[" because auto-closing means that "[[" is already in the document.
+                    trigger_characters: Some(vec!["[".to_string()]),
+                    ..Default::default()
+                }),
                 // Use full text sync so that unsaved buffers are handled.
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
@@ -64,7 +72,7 @@ impl LanguageServer for NotemancyServer {
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
-        // Use the last change (for full sync, there is only one change)
+        // For full sync, there is only one change – use the last change.
         if let Some(change) = params.content_changes.into_iter().last() {
             self.documents.write().await.insert(uri, change.text);
         }
@@ -91,6 +99,20 @@ impl LanguageServer for NotemancyServer {
 
         // Return a nested response as we have a Vec<DocumentSymbol>
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+    }
+
+    async fn completion(
+        &self,
+        params: CompletionParams,
+    ) -> Result<Option<CompletionResponse>, tower_lsp::jsonrpc::Error> {
+        // Retrieve the unsaved document text (or use an empty string if not found)
+        let uri = params.text_document_position.text_document.uri.clone();
+        let docs = self.documents.read().await;
+        let text = docs.get(&uri).cloned().unwrap_or_default();
+        drop(docs);
+
+        // Delegate to our wiki-link completion provider.
+        completion::provide_wiki_link_completions(params, &text)
     }
 
     async fn shutdown(&self) -> Result<(), tower_lsp::jsonrpc::Error> {
