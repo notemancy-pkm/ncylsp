@@ -9,6 +9,7 @@ use tower_lsp::{Client, LanguageServer};
 use crate::handlers::completion; // our completion module
 use crate::handlers::document_symbols::document_symbols;
 use crate::handlers::goto::goto_wikilink;
+use crate::handlers::hover_wikilink;
 use crate::handlers::workspace_symbols; // workspace symbols handler // our new goto helper
 
 pub struct NotemancyServer {
@@ -23,6 +24,11 @@ impl NotemancyServer {
             client,
             documents: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    async fn get_document_text(&self, uri: &Url) -> Option<String> {
+        let docs = self.documents.read().await;
+        docs.get(uri).cloned()
     }
 }
 
@@ -47,8 +53,9 @@ impl LanguageServer for NotemancyServer {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
-                // Register the go-to definition capability:
                 definition_provider: Some(OneOf::Left(true)),
+                // Register the hover provider capability:
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: None,
@@ -142,5 +149,20 @@ impl LanguageServer for NotemancyServer {
 
     async fn shutdown(&self) -> Result<(), tower_lsp::jsonrpc::Error> {
         Ok(())
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>, tower_lsp::jsonrpc::Error> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        // Retrieve the document text. You might have a document cache or similar.
+        // Replace this with your actual document retrieval code.
+        let document_text = self.get_document_text(&uri).await.unwrap_or_default();
+
+        if let Some(hover) = hover_wikilink::hover_wikilink(&document_text, position) {
+            Ok(Some(hover))
+        } else {
+            Ok(None)
+        }
     }
 }
