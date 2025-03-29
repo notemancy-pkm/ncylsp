@@ -16,3 +16,8 @@ fuse-rust = "0.4.0"
 regex = "1.11.1"
 log = "0.4.27"
 tracing = "0.1.41"
+textwrap = "0.16.2"
+pulldown-cmark-to-cmark = "21.0.0"
+pulldown-cmark = "0.13.0"
+# comrak = { version = "0.37.0", features = ["cli"] }
+# comrak = "0.15"

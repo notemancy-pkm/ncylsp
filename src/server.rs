@@ -1,3 +1,4 @@
+// src/server.rs
 use async_trait::async_trait;
 use lsp_types::*;
 use std::collections::HashMap;
@@ -6,11 +7,12 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tower_lsp::{Client, LanguageServer};
 
-use crate::handlers::completion; // our completion module
+use crate::handlers::completion; // existing modules
 use crate::handlers::document_symbols::document_symbols;
+use crate::handlers::formatting;
 use crate::handlers::goto::goto_wikilink;
 use crate::handlers::hover_wikilink;
-use crate::handlers::workspace_symbols; // workspace symbols handler // our new goto helper
+use crate::handlers::workspace_symbols; // new formatting handler
 
 pub struct NotemancyServer {
     client: Client,
@@ -54,8 +56,8 @@ impl LanguageServer for NotemancyServer {
                     TextDocumentSyncKind::FULL,
                 )),
                 definition_provider: Some(OneOf::Left(true)),
-                // Register the hover provider capability:
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                document_formatting_provider: Some(OneOf::Left(true)), // Advertise formatting support
                 ..Default::default()
             },
             server_info: None,
@@ -142,21 +144,60 @@ impl LanguageServer for NotemancyServer {
         if let Some(location) = goto_wikilink(&text, td_params.position) {
             Ok(Some(GotoDefinitionResponse::Scalar(location)))
         } else {
-            // If we didn't detect a wiki-link, we return None.
             Ok(None)
         }
     }
 
-    async fn shutdown(&self) -> Result<(), tower_lsp::jsonrpc::Error> {
-        Ok(())
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> Result<Option<Vec<TextEdit>>, tower_lsp::jsonrpc::Error> {
+        let uri = params.text_document.uri;
+        let docs = self.documents.read().await;
+        let text = docs.get(&uri).cloned().unwrap_or_default();
+        drop(docs);
+
+        // Format the current document using our markdown formatter.
+        let formatted = match formatting::format_markdown(&text) {
+            Ok(t) => t,
+            Err(e) => {
+                return Err(tower_lsp::jsonrpc::Error {
+                    code: tower_lsp::jsonrpc::ErrorCode::InternalError,
+                    message: format!("Markdown formatting error: {}", e),
+                    data: None,
+                });
+            }
+        };
+
+        // If no changes were made, return None.
+        if formatted == text {
+            Ok(None)
+        } else {
+            // Create a range that covers the entire document.
+            let lines: Vec<&str> = text.lines().collect();
+            let last_line_len = lines.last().map(|l| l.len() as u32).unwrap_or(0);
+            let full_range = Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: lines.len() as u32,
+                    character: last_line_len,
+                },
+            };
+            let edit = TextEdit {
+                range: full_range,
+                new_text: formatted,
+            };
+            Ok(Some(vec![edit]))
+        }
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>, tower_lsp::jsonrpc::Error> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
-        // Retrieve the document text. You might have a document cache or similar.
-        // Replace this with your actual document retrieval code.
         let document_text = self.get_document_text(&uri).await.unwrap_or_default();
 
         if let Some(hover) = hover_wikilink::hover_wikilink(&document_text, position) {
@@ -164,5 +205,9 @@ impl LanguageServer for NotemancyServer {
         } else {
             Ok(None)
         }
+    }
+
+    async fn shutdown(&self) -> Result<(), tower_lsp::jsonrpc::Error> {
+        Ok(())
     }
 }
