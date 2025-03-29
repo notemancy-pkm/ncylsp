@@ -8,6 +8,7 @@ use tokio::sync::RwLock;
 use tower_lsp::{Client, LanguageServer};
 
 use crate::handlers::completion; // existing modules
+use crate::handlers::custom_commands;
 use crate::handlers::document_symbols::document_symbols;
 use crate::handlers::formatting;
 use crate::handlers::goto::goto_wikilink;
@@ -157,36 +158,31 @@ impl LanguageServer for NotemancyServer {
         let text = docs.get(&uri).cloned().unwrap_or_default();
         drop(docs);
 
-        // Format the current document using our markdown formatter.
-        let formatted = match formatting::format_markdown(&text) {
-            Ok(t) => t,
-            Err(e) => {
-                return Err(tower_lsp::jsonrpc::Error {
-                    code: tower_lsp::jsonrpc::ErrorCode::InternalError,
-                    message: format!("Markdown formatting error: {}", e),
-                    data: None,
-                });
+        // Call the updated formatter with &text and &uri.
+        let formatted = crate::handlers::formatting::format_markdown(&text, &uri).map_err(|e| {
+            tower_lsp::jsonrpc::Error {
+                code: tower_lsp::jsonrpc::ErrorCode::InternalError,
+                message: format!("Markdown formatting error: {}", e),
+                data: None,
             }
-        };
+        })?;
 
-        // If no changes were made, return None.
         if formatted == text {
             Ok(None)
         } else {
-            // Create a range that covers the entire document.
             let lines: Vec<&str> = text.lines().collect();
             let last_line_len = lines.last().map(|l| l.len() as u32).unwrap_or(0);
-            let full_range = Range {
-                start: Position {
+            let full_range = tower_lsp::lsp_types::Range {
+                start: tower_lsp::lsp_types::Position {
                     line: 0,
                     character: 0,
                 },
-                end: Position {
+                end: tower_lsp::lsp_types::Position {
                     line: lines.len() as u32,
                     character: last_line_len,
                 },
             };
-            let edit = TextEdit {
+            let edit = tower_lsp::lsp_types::TextEdit {
                 range: full_range,
                 new_text: formatted,
             };

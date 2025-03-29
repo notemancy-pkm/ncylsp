@@ -1,5 +1,6 @@
 // src/handlers/mod.rs
 pub mod completion;
+pub mod custom_commands;
 pub mod document_symbols;
 pub mod formatting;
 pub mod goto;
